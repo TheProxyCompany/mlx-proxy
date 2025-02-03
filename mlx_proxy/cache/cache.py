@@ -34,7 +34,7 @@ class QuantizedKVCache(_BaseCache):
         self.group_size = group_size
         self.bits = bits
 
-    def update_and_fetch(self, keys, values):
+    def update_and_fetch(self, keys: mx.array, values: mx.array):
         B, n_kv_heads, num_steps, k_head_dim = keys.shape
         v_head_dim = values.shape[-1]
         prev = self.offset

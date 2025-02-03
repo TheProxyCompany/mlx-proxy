@@ -90,7 +90,7 @@ def get_model_architecture(config: dict[str, Any]):
 
     arch = None
     try:
-        arch = importlib.import_module(f"mlx_proxy.llm.models.{model_type}")
+        arch = importlib.import_module(f"mlx_proxy.models.{model_type}")
     except ImportError:
         msg = f"Model type {model_type} not supported."
         logging.error(msg)
@@ -101,6 +101,15 @@ def get_model_architecture(config: dict[str, Any]):
     return arch.Model, arch.ModelArgs
 
 def load_config(model_path: Path) -> dict:
+    """
+    Load the model configuration from the given path.
+
+    Args:
+        model_path (Path): The path to the model.
+
+    Returns:
+        dict: The model configuration.
+    """
     with open(model_path / "config.json") as f:
         config = json.load(f)
         return config
@@ -140,6 +149,9 @@ def get_model_path(path_or_hf_repo: str, revision: str | None = None) -> Path:
     return model_path
 
 def set_max_reccomended_device_limit():
+    """
+    Set the max recommended device limit.
+    """
     device_info = mx.metal.device_info()
     safe_max_size = device_info["max_recommended_working_set_size"]
     if isinstance(safe_max_size, int):
