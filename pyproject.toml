@@ -1,0 +1,60 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "mlx-proxy"
+version = "0.1.0"
+description = "MLX optimized for The Proxy Company's use cases"
+readme = "README.md"
+requires-python = ">=3.8"
+license = { file = "LICENSE"}
+authors = [
+    {name = "Jack Wind", email = "jckwind11@gmail.com"},
+    {name = "The Proxy Company", email = "contact@theproxy.company"}
+]
+
+dependencies = [
+    "mlx",
+    "numpy",
+    "transformers[sentencepiece]",
+    "protobuf",
+    "pyyaml",
+    "jinja2",
+    "ruff"
+]
+
+[project.urls]
+homepage = "https://github.com/TheProxyCompany/mlx-proxy"
+documentation = "https://github.com/TheProxyCompany/mlx-proxy"
+source = "https://github.com/TheProxyCompany/mlx-proxy"
+
+[tool.ruff.lint]
+extend-select = [
+    "B",    # flake8-bugbear
+    "I",    # isort
+    "PGH",  # pygrep-hooks
+    "RUF",  # Ruff-specific
+    "UP",   # pyupgrade
+    "SLF",  # string-literal-format
+    "F8",
+]
+
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "LICENSE",
+    "README.md",
+    "pyproject.toml",
+    "mlx_proxy"
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["mlx_proxy"]
+include = ["mlx_proxy/**"]
+optimize = true
+ignore-vcs = true
+
+[tool.hatch.envs.default]
+python = "3.8"
+env-vars = { PYTHONOPTIMIZE = "2" }
