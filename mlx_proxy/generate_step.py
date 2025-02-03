@@ -23,7 +23,6 @@ def generate_step(
     kv_bits: int | None = None,
     kv_group_size: int = 64,
     quantized_kv_start: int = 0,
-    prompt_progress_callback: Callable[[int, int], None] | None = None,
 ) -> Iterator[tuple[mx.array, mx.array]]:
     """
     A generator producing token ids based on the given prompt from the model.
@@ -67,8 +66,6 @@ def generate_step(
     elif model.layers is not None and len(prompt_cache) != len(model.layers):
         raise ValueError("Wrong number of layers in the prompt cache.")
 
-    prompt_progress_callback = prompt_progress_callback or (lambda *_: None)
-
     quantize_cache_fn = functools.partial(
         maybe_quantize_kv_cache,
         quantized_kv_start=quantized_kv_start,
@@ -95,14 +92,10 @@ def generate_step(
         y = sampler(logprobs)
         return y, logprobs.squeeze(0)
 
-    total_prompt_tokens = y.size
-    prompt_processed_tokens = 0
     while y.size > prefill_step_size:
         model(y[:prefill_step_size][None], cache=prompt_cache)
         quantize_cache_fn(prompt_cache)
         mx.eval([c.state for c in prompt_cache])
-        prompt_progress_callback(prompt_processed_tokens, total_prompt_tokens)
-        prompt_processed_tokens += prefill_step_size
         y = y[prefill_step_size:]
         mx.metal.clear_cache()
 
@@ -110,16 +103,15 @@ def generate_step(
     mx.async_eval(y, logprobs)
     n = 0
     while True:
-        if n != max_tokens:
-            next_y, next_logprobs = _step(y)
-            mx.async_eval(next_y, next_logprobs)
-        if n == 0:
-            mx.eval(y)
-            prompt_progress_callback(prompt_processed_tokens, total_prompt_tokens)
         if n == max_tokens:
             break
+        if n == 0:
+            mx.eval(y)
+        else:
+            y, logprobs = _step(y)
+            mx.async_eval(y, logprobs)
+
         yield y, logprobs
         if n % 256 == 0:
             mx.metal.clear_cache()
-        y, logprobs = next_y, next_logprobs
         n += 1
