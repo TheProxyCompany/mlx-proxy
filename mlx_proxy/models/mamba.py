@@ -7,7 +7,7 @@ import mlx.core as mx
 import mlx.nn as nn
 
 from .base import BaseModelArgs
-from .cache import MambaCache
+from ..cache.cache import MambaCache
 
 
 @dataclass

@@ -1,15 +1,109 @@
-# Copyright © 2023-2024 Apple Inc.
-import functools
-from collections.abc import Iterator
+import glob
+import importlib
+import json
+import logging
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 import mlx.core as mx
 import mlx.nn as nn
 from huggingface_hub import snapshot_download
+from transformers import AutoTokenizer, PreTrainedTokenizer, PreTrainedTokenizerFast
 
-from mlx_proxy.models import cache
+logger = logging.getLogger(__name__)
 
+def load(path_or_hf_repo: str) -> tuple[nn.Module, PreTrainedTokenizer | PreTrainedTokenizerFast]:
+    """
+    Load the model and tokenizer from a given path or a huggingface repository.
+
+    Args:
+        path_or_hf_repo (Path): The path or the huggingface repository to load the model from.
+        tokenizer_config (dict, optional): Configuration parameters specifically for the tokenizer.
+            Defaults to an empty dictionary.
+        model_config(dict, optional): Configuration parameters specifically for the model.
+            Defaults to an empty dictionary.
+        adapter_path (str, optional): Path to the LoRA adapters. If provided, applies LoRA layers
+            to the model. Default: ``None``.
+        lazy (bool): If ``False`` eval the model parameters to make sure they are
+            loaded in memory before returning, otherwise they will be loaded
+            when needed. Default: ``False``
+    Returns:
+        Tuple[nn.Module, TokenizerWrapper]: A tuple containing the loaded model and tokenizer.
+
+    Raises:
+        FileNotFoundError: If config file or safetensors are not found.
+        ValueError: If model class or args class are not found.
+    """
+    model_path = get_model_path(path_or_hf_repo)
+    model, model_type = load_model(model_path.as_posix())
+    tokenizer = AutoTokenizer.from_pretrained(model_path)
+
+    return model, tokenizer
+
+def load_model(model_path: str) -> tuple[nn.Module, str]:
+    """
+    Load and initialize the model from a given path.
+
+    Args:
+        model_path (Path): The path to load the model from.
+    Returns:
+        nn.Module: The loaded and initialized model.
+    """
+    path = get_model_path(model_path)
+    config = load_config(path)
+    weight_files = glob.glob(str(path / "model*.safetensors"))
+    weights = {}
+    for wf in weight_files:
+        weights.update(mx.load(wf))
+
+    model_class, model_args_class = get_model_architecture(config)
+    model_args = model_args_class.from_dict(config)
+    model = model_class(model_args)
+    if hasattr(model, "sanitize"):
+        weights = model.sanitize(weights)
+
+    if (quantization := config.get("quantization", None)) is not None:
+        nn.quantize(model, **quantization)
+
+    model.load_weights(list(weights.items()))
+    assert isinstance(model, nn.Module)
+    mx.eval(model.parameters())
+    model.eval()
+    return model, config.get("model_type", "chatml")
+
+def get_model_architecture(config: dict[str, Any]):
+    """
+    Retrieve the model and model args classes based on the configuration.
+
+    Args:
+        config (dict): The model configuration.
+
+    Returns:
+        A tuple containing the Model class and the ModelArgs class.
+    """
+    model_type = config["model_type"]
+    model_type = {
+        "mistral": "llama",
+        "phi-msft": "phixtral",
+        "falcon_mamba": "mamba",
+    }.get(model_type, model_type)
+
+    arch = None
+    try:
+        arch = importlib.import_module(f"mlx_proxy.llm.models.{model_type}")
+    except ImportError:
+        msg = f"Model type {model_type} not supported."
+        logging.error(msg)
+
+    if arch is None:
+        raise ValueError("No model architecture found for the given model type.")
+
+    return arch.Model, arch.ModelArgs
+
+def load_config(model_path: Path) -> dict:
+    with open(model_path / "config.json") as f:
+        config = json.load(f)
+        return config
 
 def get_model_path(path_or_hf_repo: str, revision: str | None = None) -> Path:
     """
@@ -45,131 +139,13 @@ def get_model_path(path_or_hf_repo: str, revision: str | None = None) -> Path:
             raise ValueError(f"Model not found for path or HF repo: {path_or_hf_repo}.") from e
     return model_path
 
-
-def maybe_quantize_kv_cache(prompt_cache, quantized_kv_start, kv_group_size, kv_bits):
-    if (
-        kv_bits is not None
-        and not isinstance(prompt_cache[0], cache.QuantizedKVCache)
-        and prompt_cache[0].offset > quantized_kv_start
-    ):
-        for i in range(len(prompt_cache)):
-            if isinstance(prompt_cache[i], cache.KVCache):
-                prompt_cache[i] = prompt_cache[i].to_quantized(
-                    group_size=kv_group_size, bits=kv_bits
-                )
-
-
-def generate(
-    prompt: mx.array,
-    model: nn.Module,
-    *,
-    max_tokens: int = 256,
-    sampler: Callable[[mx.array], mx.array] | None = None,
-    logits_processors: list[Callable[[mx.array, mx.array], mx.array]] | None = None,
-    max_kv_size: int | None = None,
-    prompt_cache: Any | None = None,
-    prefill_step_size: int = 512,
-    kv_bits: int | None = None,
-    kv_group_size: int = 64,
-    quantized_kv_start: int = 0,
-    prompt_progress_callback: Callable[[int, int], None] | None = None,
-) -> Iterator[tuple[mx.array, mx.array]]:
-    """
-    A generator producing token ids based on the given prompt from the model.
-
-    Args:
-        prompt (mx.array): The input prompt.
-        model (nn.Module): The model to use for generation.
-        max_tokens (int): The maximum number of tokens. Use``-1`` for an infinite
-          generator. Default: ``256``.
-        sampler (Callable[mx.array, mx.array], optional): A sampler for sampling a
-          token from a vector of log probabilities. Default: ``None``.
-        logits_processors (List[Callable[[mx.array, mx.array], mx.array]], optional):
-          A list of functions that take tokens and logits and return the processed
-          logits. Default: ``None``.
-        max_kv_size (int, optional): Maximum size of the key-value cache. Old
-          entries (except the first 4 tokens) will be overwritten.
-        prompt_cache (List[Any], optional): A pre-computed prompt cache. Note, if
-          provided, the cache will be updated in place.
-        prefill_step_size (int): Step size for processing the prompt.
-        kv_bits (int, optional): Number of bits to use for KV cache quantization.
-          None implies no cache quantization. Default: ``None``.
-        kv_group_size (int): Group size for KV cache quantization. Default: ``64``.
-        quantized_kv_start (int): Step to begin using a quantized KV cache.
-           when ``kv_bits`` is non-None. Default: ``0``.
-        prompt_prorgress_callback (Callable[int, int]): A call-back which takes the
-           prompt tokens processed so far and the total number of prompt tokens.
-
-    Yields:
-        tuple[mx.array, mx.array]: One token and a vector of log probabilities.
-    """
-
-    y = prompt
-    tokens = None
-
-    # Create the KV cache for generation
-    if prompt_cache is None:
-        prompt_cache = cache.make_prompt_cache(
-            model,
-            max_kv_size=max_kv_size,
-        )
-    elif model.layers is not None and len(prompt_cache) != len(model.layers):
-        raise ValueError("Wrong number of layers in the prompt cache.")
-
-    prompt_progress_callback = prompt_progress_callback or (lambda *_: None)
-
-    quantize_cache_fn = functools.partial(
-        maybe_quantize_kv_cache,
-        quantized_kv_start=quantized_kv_start,
-        kv_group_size=kv_group_size,
-        kv_bits=kv_bits,
-    )
-
-    sampler = sampler or (lambda x: mx.argmax(x, axis=-1))
-
-    def _step(y):
-        logits = model(y[None], cache=prompt_cache)
-        logits = logits[:, -1, :]
-
-        if logits_processors:
-            nonlocal tokens
-            tokens = mx.concat([tokens, y]) if tokens is not None else y
-
-            for processor in logits_processors:
-                logits = processor(tokens, logits)
-
-        quantize_cache_fn(prompt_cache)
-
-        logprobs = logits - mx.logsumexp(logits, keepdims=True)
-        y = sampler(logprobs)
-        return y, logprobs.squeeze(0)
-
-    total_prompt_tokens = y.size
-    prompt_processed_tokens = 0
-    while y.size > prefill_step_size:
-        model(y[:prefill_step_size][None], cache=prompt_cache)
-        quantize_cache_fn(prompt_cache)
-        mx.eval([c.state for c in prompt_cache])
-        prompt_progress_callback(prompt_processed_tokens, total_prompt_tokens)
-        prompt_processed_tokens += prefill_step_size
-        y = y[prefill_step_size:]
-        mx.metal.clear_cache()
-
-    y, logprobs = _step(y)
-    mx.async_eval(y, logprobs)
-    n = 0
-    while True:
-        if n != max_tokens:
-            next_y, next_logprobs = _step(y)
-            mx.async_eval(next_y, next_logprobs)
-        if n == 0:
-            mx.eval(y)
-            prompt_progress_callback(prompt_processed_tokens, total_prompt_tokens)
-        if n == max_tokens:
-            break
-        for token in [y.item()] if y.shape[0] == 1 else y.tolist():
-            yield token, logprobs
-        if n % 256 == 0:
-            mx.metal.clear_cache()
-        y, logprobs = next_y, next_logprobs
-        n += 1
+def set_max_reccomended_device_limit():
+    device_info = mx.metal.device_info()
+    safe_max_size = device_info["max_recommended_working_set_size"]
+    if isinstance(safe_max_size, int):
+        mx.synchronize()
+        mx.metal.set_wired_limit(safe_max_size)
+        max_rec_gb = safe_max_size / 2**30
+        logger.info(f"Set wired memory limit to {max_rec_gb:.2f}GB")
+    else:
+        logger.warning(f"Max recommended size is not an integer: {safe_max_size}")
