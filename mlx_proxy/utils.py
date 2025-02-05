@@ -35,7 +35,7 @@ def load(path_or_hf_repo: str) -> tuple[nn.Module, PreTrainedTokenizer | PreTrai
         ValueError: If model class or args class are not found.
     """
     model_path = get_model_path(path_or_hf_repo)
-    model, model_type = load_model(model_path.as_posix())
+    model, _ = load_model(model_path.as_posix())
     tokenizer = AutoTokenizer.from_pretrained(model_path)
 
     return model, tokenizer
@@ -86,6 +86,7 @@ def get_model_architecture(config: dict[str, Any]):
         "mistral": "llama",
         "phi-msft": "phixtral",
         "falcon_mamba": "mamba",
+        "llama-deepseek": "llama",
     }.get(model_type, model_type)
 
     arch = None
