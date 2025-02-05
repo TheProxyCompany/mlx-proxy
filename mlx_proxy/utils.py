@@ -69,7 +69,7 @@ def load_model(model_path: str) -> tuple[nn.Module, str]:
     assert isinstance(model, nn.Module)
     mx.eval(model.parameters())
     model.eval()
-    return model, config.get("model_type", "chatml")
+    return model, config.get("control_tokens", config.get("model_type", "chatml"))
 
 def get_model_architecture(config: dict[str, Any]):
     """
