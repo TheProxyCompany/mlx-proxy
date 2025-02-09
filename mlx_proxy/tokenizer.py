@@ -38,7 +38,9 @@ class Tokenizer:
         return self._tokenizer.decode(tokens, **kwargs)
 
     def encode(
-        self, prompt: str | list[dict[str, str]] | dict[str, Any], **kwargs
+        self,
+        prompt: str | list[dict[str, str]] | dict[str, str],
+        **kwargs,
     ) -> list[int]:
         """Encode text or chat messages into tokens.
 
@@ -56,26 +58,14 @@ class Tokenizer:
             ValueError: If chat template produces unsupported format
         """
         if isinstance(prompt, str):
-            tools = kwargs.pop("tools", None)
-            date_string = kwargs.pop("date_string", None)
-            if tools is not None or date_string is not None:
-                try:
-                    prompt = prompt.format(date_string=date_string, tools=tools)
-                except Exception:
-                    pass
-            return self._tokenizer.encode(prompt, **kwargs)
+            messages = [{"role": "user", "content": prompt}]
+        elif isinstance(prompt, dict):
+            messages = [prompt]
+        elif isinstance(prompt, list):
+            messages = prompt
 
-        if isinstance(prompt, list) or isinstance(prompt, dict):
-            kwargs["interactions"] = prompt
-            if isinstance(prompt, dict):
-                conversation = [event.to_dict() for event in prompt.values()]
-                templated = self._tokenizer.apply_chat_template(conversation, **kwargs)
-            else:
-                templated = self._tokenizer.apply_chat_template(prompt, **kwargs)
-
-            if isinstance(templated, list) and isinstance(templated[0], int):
-                return templated  # type: ignore[reportReturnValue]
-            raise ValueError(f"Unsupported prompt format: {templated}")
+        templated = self._tokenizer.apply_chat_template(messages, **kwargs)
+        return templated  # type: ignore[reportReturnValue]
 
     @staticmethod
     def load(model_path: str | Path, **kwargs) -> Tokenizer:
