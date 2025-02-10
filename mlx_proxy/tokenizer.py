@@ -40,6 +40,7 @@ class Tokenizer:
     def encode(
         self,
         prompt: str | list[dict[str, str]] | dict[str, str],
+        apply_chat_template: bool = True,
         **kwargs,
     ) -> list[int]:
         """Encode text or chat messages into tokens.
@@ -57,6 +58,9 @@ class Tokenizer:
         Raises:
             ValueError: If chat template produces unsupported format
         """
+        if not apply_chat_template and isinstance(prompt, str):
+            return self._tokenizer.encode(prompt, **kwargs)
+
         if isinstance(prompt, str):
             messages = [{"role": "user", "content": prompt}]
         elif isinstance(prompt, dict):
