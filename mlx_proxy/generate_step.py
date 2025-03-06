@@ -6,7 +6,7 @@ from typing import Any, Callable
 import mlx.core as mx
 import mlx.nn as nn
 
-from mlx_proxy.cache import make_prompt_cache, maybe_quantize_kv_cache
+from mlx_proxy.cache import make_key_value_cache, maybe_quantize_kv_cache
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +59,7 @@ def generate_step(
 
     # Create the KV cache for generation
     if prompt_cache is None:
-        prompt_cache = make_prompt_cache(
+        prompt_cache = make_key_value_cache(
             model,
             max_kv_size=max_kv_size,
         )
