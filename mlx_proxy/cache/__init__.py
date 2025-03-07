@@ -185,7 +185,7 @@ class BaseCache(ABC):
         mx.save_safetensors(file_name, cache_data, cache_metadata)
 
     @staticmethod
-    def load_cache(file_name: str, return_metadata: bool = False):
+    def load_cache(file_name: str, return_metadata: bool = False) -> list[BaseCache] | tuple[list[BaseCache], dict[str, str]]:
         """
         Load a key-value cache from a file.
 
@@ -197,7 +197,7 @@ class BaseCache(ABC):
             List[BaseCache] or Tuple[List[BaseCache], Dict[str, str]]: The key-value cache and
                 the metadata if requested.
         """
-        arrays, cache_metadata = mx.load(file_name, return_metadata=True)
+        arrays, cache_metadata = mx.load(file_name, return_metadata=return_metadata)
         arrays = tree_unflatten(list(arrays.items()))
         cache_metadata = tree_unflatten(list(cache_metadata.items()))
         info, metadata, classes = cache_metadata
