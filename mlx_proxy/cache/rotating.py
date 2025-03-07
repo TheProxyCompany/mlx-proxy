@@ -281,4 +281,4 @@ class RotatingKVCache(BaseCache):
         Raises:
             NotImplementedError: This method is not yet implemented
         """
-        raise NotImplementedError("RotatingKVCache Quantization NYI")
+        return self

@@ -12,6 +12,7 @@ class KVCache(BaseCache):
     allowing for efficient autoregressive generation by avoiding recomputation
     of previously processed tokens.
     """
+
     keys: mx.array | None
     values: mx.array | None
     offset: int
@@ -41,7 +42,9 @@ class KVCache(BaseCache):
         """
         prev = self.offset
         if self.keys is None or (prev + keys.shape[2]) > self.keys.shape[2]:
-            needed = prev + keys.shape[2] - (self.keys.shape[2] if self.keys else 0)
+            needed = (
+                prev + keys.shape[2] - (0 if self.keys is None else self.keys.shape[2])
+            )
             n_steps = (needed + self.step - 1) // self.step
             B, n_kv_heads, _, k_head_dim = keys.shape
             v_head_dim = values.shape[3]

@@ -1,25 +1,28 @@
 import functools
 import logging
 from collections.abc import Iterator
-from typing import Any, Callable
+from typing import Callable
 
 import mlx.core as mx
 import mlx.nn as nn
 
-from mlx_proxy.cache import make_key_value_cache, maybe_quantize_kv_cache
+from mlx_proxy.cache import BaseCache
+from mlx_proxy.cache.reusable import ReusableKVCache
 
 logger = logging.getLogger(__name__)
 
 def generate_step(
-    prompt: mx.array,
+    prompt: list[int],
     model: nn.Module,
     *,
     max_tokens: int = 256,
     sampler: Callable[[mx.array], mx.array] | None = None,
     logits_processors: list[Callable[[mx.array, mx.array], mx.array]] | None = None,
     max_kv_size: int | None = None,
-    prompt_cache: Any | None = None,
+    prompt_cache: list[BaseCache] | None = None,
     prefill_step_size: int = 512,
+    reuse_prompt_cache: bool = False,
+    computed_ids: list[int] | None = None,
     kv_bits: int | None = None,
     kv_group_size: int = 64,
     quantized_kv_start: int = 0,
@@ -53,35 +56,38 @@ def generate_step(
     Yields:
         tuple[mx.array, mx.array]: One token and a vector of log probabilities.
     """
-
-    y = prompt
-    tokens = None
-
     # Create the KV cache for generation
     if prompt_cache is None:
-        prompt_cache = make_key_value_cache(
+        prompt_cache = BaseCache.make_kv_cache(
             model,
             max_kv_size=max_kv_size,
+            reusable=reuse_prompt_cache,
         )
     elif model.layers is not None and len(prompt_cache) != len(model.layers):
         raise ValueError("Wrong number of layers in the prompt cache.")
 
+    if computed_ids is not None:
+        prompt = _reuse_cache(prompt, computed_ids, prompt_cache)
+
+    y = mx.array(prompt)
+    tokens = None
+
     quantize_cache_fn = functools.partial(
-        maybe_quantize_kv_cache,
-        quantized_kv_start=quantized_kv_start,
-        kv_group_size=kv_group_size,
-        kv_bits=kv_bits,
+        BaseCache.maybe_quantize,
+        quantized_start=quantized_kv_start,
+        group_size=kv_group_size,
+        bits=kv_bits,
     )
 
     sampler = sampler or (lambda x: mx.argmax(x, axis=-1))
 
-    def _step(y):
+    def _step(y: mx.array) -> tuple[mx.array, mx.array]:
         logits = model(y[None], cache=prompt_cache)
         logits = logits[:, -1, :]
 
         if logits_processors:
             nonlocal tokens
-            tokens = mx.concat([tokens, y]) if tokens is not None else y
+            tokens = y if tokens is None else mx.concat([tokens, y])
 
             for processor in logits_processors:
                 logits = processor(tokens, logits)
@@ -115,3 +121,31 @@ def generate_step(
         if n % 256 == 0:
             mx.metal.clear_cache()
         n += 1
+
+
+def _reuse_cache(
+    prompt: list[int],
+    computed_ids: list[int],
+    cache: list[BaseCache],
+) -> list[int]:
+    """
+    Reuse the cache for the given prompt and precomputed ids.
+    """
+
+    if not cache:
+        return prompt
+
+    if any(not isinstance(c, ReusableKVCache) for c in cache):
+        raise ValueError("Cache must be a list of ReusableKVCache to reuse the cache.")
+
+    common_prefix = 0
+    for i, id in enumerate(computed_ids):
+        if i >= len(prompt) - 1 or prompt[i] != id:
+            break
+        common_prefix += 1
+
+    for layer_cache in cache:
+        assert isinstance(layer_cache, ReusableKVCache)
+        layer_cache.reuse(len(prompt), common_prefix)
+
+    return prompt[common_prefix:]

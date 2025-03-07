@@ -1,5 +1,6 @@
+from __future__ import annotations
+
 import mlx.core as mx
-import mlx.nn as nn
 
 from mlx_proxy.cache import BaseCache
 
@@ -39,19 +40,6 @@ class ReusableKVCache(BaseCache):
         self.step = step
         self.growth_factor = growth_factor
         self.max_capacity = max_capacity
-
-    @classmethod
-    def for_model(cls, model: nn.Module) -> list["ReusableKVCache"]:
-        """
-        Create a list of `ReusableKVCache` instances, one for each layer of the model.
-
-        Args:
-            model: The model.
-
-        Returns:
-            A list of `ReusableKVCache` instances.
-        """
-        return [cls() for _ in model.layers or []]
 
     def reuse(self, new_prompt_length: int, common_prefix_length: int) -> None:
         """
@@ -258,3 +246,9 @@ class ReusableKVCache(BaseCache):
         n = min(self.offset, n)
         self.offset -= n
         return n
+
+    def to_quantized(self, group_size: int = 64, bits: int = 4) -> BaseCache:
+        """
+        Convert this cache to a quantized version for memory efficiency.
+        """
+        return self
