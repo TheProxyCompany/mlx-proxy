@@ -7,7 +7,7 @@ from typing import Any, Optional
 import mlx.core as mx
 from mlx.utils import tree_map
 
-from ..cache.cache import QuantizedKVCache
+from mlx_proxy.cache.cache import QuantizedKVCache
 
 
 @dataclass

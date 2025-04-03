@@ -93,8 +93,11 @@ def get_model_architecture(config: dict[str, Any]):
     try:
         arch = importlib.import_module(f"mlx_proxy.models.{model_type}")
     except ImportError:
-        msg = f"Model type {model_type} not supported."
-        logging.error(msg)
+        try:
+            arch = importlib.import_module(f"mlx_lm.models.{model_type}")
+        except ImportError:
+            msg = f"Model type {model_type} not supported."
+            logging.error(msg)
 
     if arch is None:
         raise ValueError("No model architecture found for the given model type.")
@@ -157,7 +160,7 @@ def set_max_reccomended_device_limit():
     safe_max_size = device_info["max_recommended_working_set_size"]
     if isinstance(safe_max_size, int):
         mx.synchronize()
-        mx.metal.set_wired_limit(safe_max_size)
+        mx.set_wired_limit(safe_max_size)
         max_rec_gb = safe_max_size / 2**30
         logger.info(f"Set wired memory limit to {max_rec_gb:.2f}GB")
     else:

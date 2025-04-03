@@ -50,6 +50,8 @@ class Attention(nn.Module):
         else:
             attention_bias = False
 
+        assert n_kv_heads is not None
+
         self.q_proj = nn.Linear(dim, n_heads * head_dim, bias=attention_bias)
         self.k_proj = nn.Linear(dim, n_kv_heads * head_dim, bias=attention_bias)
         self.v_proj = nn.Linear(dim, n_kv_heads * head_dim, bias=attention_bias)

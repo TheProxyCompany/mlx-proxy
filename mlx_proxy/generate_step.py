@@ -103,7 +103,7 @@ def generate_step(
         quantize_cache_fn(prompt_cache)
         mx.eval([c.state for c in prompt_cache])
         y = y[prefill_step_size:]
-        mx.metal.clear_cache()
+        mx.clear_cache()
 
     y, logprobs = _step(y)
     mx.async_eval(y, logprobs)
@@ -119,7 +119,7 @@ def generate_step(
 
         yield y, logprobs
         if n % 256 == 0:
-            mx.metal.clear_cache()
+            mx.clear_cache()
         n += 1
 
 
