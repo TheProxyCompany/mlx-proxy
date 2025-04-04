@@ -66,7 +66,7 @@ def generate_step(
     elif model.layers is not None and len(prompt_cache) != len(model.layers):
         raise ValueError("Wrong number of layers in the prompt cache.")
 
-    if computed_ids is not None:
+    if computed_ids is not None and reuse_prompt_cache:
         prompt = _reuse_cache(prompt, computed_ids, prompt_cache)
 
     y = mx.array(prompt)
@@ -135,17 +135,20 @@ def _reuse_cache(
     if not cache:
         return prompt
 
-    if any(not isinstance(c, ReusableKVCache) for c in cache):
-        raise ValueError("Cache must be a list of ReusableKVCache to reuse the cache.")
-
     common_prefix = 0
     for i, id in enumerate(computed_ids):
         if i >= len(prompt) - 1 or prompt[i] != id:
             break
         common_prefix += 1
 
+    if common_prefix == 0:
+        return prompt
+
     for layer_cache in cache:
-        assert isinstance(layer_cache, ReusableKVCache)
-        layer_cache.reuse(len(prompt), common_prefix)
+        if isinstance(layer_cache, ReusableKVCache):
+            layer_cache.reuse(len(prompt), common_prefix)
+        else:
+            common_prefix = 0
+            logger.debug("Skipping cache reuse for layer %d because it is not a ReusableKVCache", i)
 
     return prompt[common_prefix:]

@@ -96,7 +96,7 @@ class KVCache(BaseCache):
             v: A tuple containing the keys and values to set
         """
         self.keys, self.values = v
-        self.offset = self.keys.shape[2]
+        self.offset = self.keys.shape[2] if self.keys is not None else 0
 
     def is_trimmable(self) -> bool:
         """

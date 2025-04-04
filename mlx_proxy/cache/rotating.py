@@ -109,7 +109,7 @@ class RotatingKVCache(BaseCache):
                 self.keys = self._trim(trim_size, self.keys, keys)
                 self.values = self._trim(trim_size, self.values, values)
         self.offset += keys.shape[2]
-        self._idx = self.keys.shape[2]
+        self._idx = self.keys.shape[2] if self.keys is not None else None
         return self.keys, self.values
 
     def _update_in_place(self, keys: mx.array, values: mx.array) -> tuple[mx.array, mx.array]:
@@ -144,7 +144,7 @@ class RotatingKVCache(BaseCache):
             self._idx = prev
 
         # Trim if needed
-        trim_size = self.keys.shape[2] - self.max_size
+        trim_size = (self.keys.shape[2] - self.max_size) if self.keys is not None else 0
         if trim_size > 0 and self.keys is not None and self.values is not None:
             self.keys = self._trim(trim_size, self.keys)
             self.values = self._trim(trim_size, self.values)
