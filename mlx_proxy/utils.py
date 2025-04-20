@@ -10,6 +10,8 @@ import mlx.nn as nn
 from huggingface_hub import snapshot_download
 from transformers import AutoTokenizer, PreTrainedTokenizer, PreTrainedTokenizerFast
 
+from mlx_proxy.models.base import BaseModelArgs
+
 logger = logging.getLogger(__name__)
 
 def load(path_or_hf_repo: str) -> tuple[nn.Module, PreTrainedTokenizer | PreTrainedTokenizerFast]:
@@ -40,7 +42,7 @@ def load(path_or_hf_repo: str) -> tuple[nn.Module, PreTrainedTokenizer | PreTrai
 
     return model, tokenizer
 
-def load_model(model_path: str) -> tuple[nn.Module, str]:
+def load_model(model_path: str) -> nn.Module:
     """
     Load and initialize the model from a given path.
 
@@ -69,9 +71,9 @@ def load_model(model_path: str) -> tuple[nn.Module, str]:
     assert isinstance(model, nn.Module)
     mx.eval(model.parameters())
     model.eval()
-    return model, config.get("control_tokens", config.get("model_type", "chatml"))
+    return model
 
-def get_model_architecture(config: dict[str, Any]):
+def get_model_architecture(config: dict[str, Any]) -> tuple[nn.Module, BaseModelArgs]:
     """
     Retrieve the model and model args classes based on the configuration.
 
@@ -102,7 +104,9 @@ def get_model_architecture(config: dict[str, Any]):
     if arch is None:
         raise ValueError("No model architecture found for the given model type.")
 
-    return arch.Model, arch.ModelArgs
+    assert arch.Model and isinstance(arch.Model, nn.Module)
+    assert arch.ModelConfig and isinstance(arch.ModelConfig, BaseModelArgs)
+    return arch.Model, arch.ModelConfig
 
 def load_config(model_path: Path) -> dict:
     """
