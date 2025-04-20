@@ -172,7 +172,7 @@ class Model(nn.Module):
     def __call__(
         self,
         input_ids: mx.array,
-        pixel_values: mx.array,
+        pixel_values: mx.array | None = None,
         mask: mx.array | None = None,
         cache: list[BaseCache] | list[None] | None = None,
         **kwargs,

@@ -12,9 +12,11 @@ from mlx_proxy.cache.reusable import ReusableKVCache
 logger = logging.getLogger(__name__)
 
 def generate_step(
-    prompt: list[int],
+    prompt_ids: mx.array,
     model: nn.Module,
     *,
+    pixel_values: mx.array | None = None,
+    mask: mx.array | None = None,
     max_tokens: int = 256,
     sampler: Callable[[mx.array], mx.array] | None = None,
     logits_processors: list[Callable[[mx.array, mx.array], mx.array]] | None = None,
@@ -67,9 +69,8 @@ def generate_step(
         raise ValueError("Wrong number of layers in the prompt cache.")
 
     if computed_ids is not None:
-        prompt = _reuse_cache(prompt, computed_ids, prompt_cache)
+        y = reuse_cache(prompt_ids, computed_ids, prompt_cache)
 
-    y = mx.array(prompt)
     tokens = None
 
     quantize_cache_fn = functools.partial(
@@ -82,7 +83,7 @@ def generate_step(
     sampler = sampler or (lambda x: mx.argmax(x, axis=-1))
 
     def _step(y: mx.array) -> tuple[mx.array, mx.array]:
-        logits = model(y[None], cache=prompt_cache)
+        logits = model(y[None], pixel_values=pixel_values, mask=mask, cache=prompt_cache)
         logits = logits[:, -1, :]
 
         if logits_processors:
@@ -99,7 +100,7 @@ def generate_step(
         return y, logprobs.squeeze(0)
 
     while y.size > prefill_step_size:
-        model(y[:prefill_step_size][None], cache=prompt_cache)
+        model(y[:prefill_step_size][None], pixel_values=pixel_values, mask=mask, cache=prompt_cache)
         quantize_cache_fn(prompt_cache)
         mx.eval([c.state for c in prompt_cache])
         y = y[prefill_step_size:]
@@ -123,29 +124,29 @@ def generate_step(
         n += 1
 
 
-def _reuse_cache(
-    prompt: list[int],
-    computed_ids: list[int],
+def reuse_cache(
+    prompt_ids: mx.array,
+    computed_ids: mx.array,
     cache: list[BaseCache],
-) -> list[int]:
+) -> mx.array:
     """
     Reuse the cache for the given prompt and precomputed ids.
     """
 
     if not cache or not all(isinstance(c, ReusableKVCache) for c in cache):
-        return prompt
+        return prompt_ids
 
     common_prefix = 0
     for i, id in enumerate(computed_ids):
-        if i >= len(prompt) - 1 or prompt[i] != id:
+        if i >= len(prompt_ids) - 1 or prompt_ids[i] != id:
             break
         common_prefix += 1
 
     if common_prefix == 0:
-        return prompt
+        return prompt_ids
 
     for layer_cache in cache:
         assert isinstance(layer_cache, ReusableKVCache)
-        layer_cache.reuse(len(prompt), common_prefix)
+        layer_cache.reuse(len(prompt_ids), common_prefix)
 
-    return prompt[common_prefix:]
+    return prompt_ids[common_prefix:]

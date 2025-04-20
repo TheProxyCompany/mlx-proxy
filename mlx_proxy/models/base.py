@@ -1,11 +1,15 @@
 # Copyright © 2023-2024 Apple Inc.
 
 import inspect
+from abc import abstractmethod
 from dataclasses import dataclass
 from typing import Any, Optional
 
 import mlx.core as mx
 from mlx.utils import tree_map
+from transformers.image_processing_utils import BaseImageProcessor as ImageProcessor
+from transformers.image_processing_utils import get_size_dict
+from transformers.image_utils import ChannelDimension, PILImageResampling
 
 from mlx_proxy.cache.cache import QuantizedKVCache
 
@@ -21,6 +25,37 @@ class BaseModelArgs:
                 if k in inspect.signature(cls).parameters
             }
         )
+
+class BaseImageProcessor(ImageProcessor):
+    def __init__(
+        self,
+        image_mean=(0.5, 0.5, 0.5),
+        image_std=(0.5, 0.5, 0.5),
+        size=(384, 384),
+        crop_size: dict[str, int] | None = None,
+        resample=PILImageResampling.BICUBIC,
+        rescale_factor=1 / 255,
+        data_format=ChannelDimension.FIRST,
+    ):
+        if not crop_size:
+            crop_size = {"height": 448, "width": 448}
+        crop_size = get_size_dict(
+            crop_size,
+            default_to_square=True,
+            param_name="crop_size",
+        )
+
+        self.image_mean = image_mean
+        self.image_std = image_std
+        self.size = size
+        self.resample = resample
+        self.rescale_factor = rescale_factor
+        self.data_format = data_format
+        self.crop_size = crop_size
+
+    @abstractmethod
+    def preprocess(self, images):
+        pass
 
 
 def create_causal_mask(
