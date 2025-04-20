@@ -13,7 +13,7 @@ from mlx_proxy.models.intern.language import LanguageModel, TextConfig
 from mlx_proxy.models.intern.vision import VisionConfig, VisionModel
 
 
-class ModelConfig(BaseModelArgs):
+class ModelArgs(BaseModelArgs):
     text_config: TextConfig
     vision_config: VisionConfig
     model_type: str
@@ -35,7 +35,7 @@ class ModelConfig(BaseModelArgs):
 
 
 class Model(nn.Module):
-    def __init__(self, config: ModelConfig):
+    def __init__(self, config: ModelArgs):
         super().__init__()
         self.config = config
         self.vision_tower = VisionModel(config.vision_config)
@@ -122,7 +122,7 @@ class Model(nn.Module):
         with open(path / "config.json") as f:
             model_config = json.load(f)
 
-        model_config = ModelConfig.from_dict(model_config)
+        model_config = ModelArgs.from_dict(model_config)
 
         model_config.vision_config = VisionConfig.from_dict(model_config.vision_config)
         model_config.text_config = TextConfig.from_dict(model_config)

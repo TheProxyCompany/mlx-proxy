@@ -105,8 +105,8 @@ def get_model_architecture(config: dict[str, Any]) -> tuple[nn.Module, BaseModel
         raise ValueError("No model architecture found for the given model type.")
 
     assert arch.Model and isinstance(arch.Model, nn.Module)
-    assert arch.ModelConfig and isinstance(arch.ModelConfig, BaseModelArgs)
-    return arch.Model, arch.ModelConfig
+    assert arch.ModelArgs and isinstance(arch.ModelArgs, BaseModelArgs)
+    return arch.Model, arch.ModelArgs
 
 def load_config(model_path: Path) -> dict:
     """

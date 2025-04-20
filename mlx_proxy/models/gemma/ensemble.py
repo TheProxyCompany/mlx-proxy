@@ -12,7 +12,7 @@ from mlx_proxy.models.gemma.language import LanguageModel, RMSNorm, TextConfig
 from mlx_proxy.models.gemma.vision import VisionConfig, VisionModel
 
 
-class ModelConfig(BaseModelArgs):
+class ModelArgs(BaseModelArgs):
     text_config: TextConfig
     vision_config: VisionConfig
     model_type: str
@@ -34,7 +34,7 @@ class ModelConfig(BaseModelArgs):
 
 
 class Gemma3MultiModalProjector(nn.Module):
-    def __init__(self, config: ModelConfig):
+    def __init__(self, config: ModelArgs):
         super().__init__()
         self.mm_input_projection_weight = mx.ones(
             (config.vision_config.hidden_size, config.text_config.hidden_size)
@@ -83,7 +83,7 @@ class Gemma3MultiModalProjector(nn.Module):
 
 class Model(nn.Module):
 
-    def __init__(self, config: ModelConfig):
+    def __init__(self, config: ModelArgs):
         super().__init__()
         self.model_type = config.model_type
         self.config = config
@@ -195,7 +195,7 @@ class Model(nn.Module):
         with open(path / "config.json") as f:
             config = json.load(f)
 
-        model_config = ModelConfig.from_dict(config)
+        model_config = ModelArgs.from_dict(config)
         model_config.vision_config = VisionConfig.from_dict(config["vision_config"])
         model_config.text_config = TextConfig.from_dict(config["text_config"])
 
