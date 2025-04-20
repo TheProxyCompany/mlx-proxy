@@ -3,7 +3,7 @@ from collections.abc import Callable
 import mlx.core as mx
 
 
-def make_repetition_penalty(penalty: float, context_size: int = 20) -> Callable[[mx.array, list[int]], mx.array]:
+def make_repetition_penalty(penalty: float, context_size: int = 20) -> Callable[[mx.array, mx.array], mx.array]:
     """
     Make repetition penalty processor.
 

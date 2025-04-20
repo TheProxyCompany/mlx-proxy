@@ -262,7 +262,7 @@ class LanguageModel(nn.Module):
         out = self.lm_head(out)
         return out
 
-    def sanitize(self, weights):
+    def sanitize(self, weights: dict[str, mx.array]) -> dict[str, mx.array]:
         if "lm_head.weight" not in weights:
             weights["language_model.lm_head.weight"] = weights[
                 "language_model.model.embed_tokens.weight"

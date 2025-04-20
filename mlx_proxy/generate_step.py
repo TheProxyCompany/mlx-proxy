@@ -24,7 +24,7 @@ def generate_step(
     prompt_cache: list[BaseCache] | None = None,
     prefill_step_size: int = 512,
     reuse_prompt_cache: bool = False,
-    computed_ids: list[int] | None = None,
+    computed_ids: mx.array | None = None,
     kv_bits: int | None = None,
     kv_group_size: int = 64,
     quantized_kv_start: int = 0,

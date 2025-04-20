@@ -246,7 +246,7 @@ class VisionModel(nn.Module):
     ) -> mx.array:
         return self.vision_model(x, output_hidden_states)
 
-    def sanitize(self, weights):
+    def sanitize(self, weights: dict[str, mx.array]) -> dict[str, mx.array]:
         sanitized_weights = {}
         for k, v in weights.items():
             if "patch_embedding.weight" in k:

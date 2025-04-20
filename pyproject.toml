@@ -17,13 +17,16 @@ authors = [
 dependencies = [
     "mlx",
     "mlx-lm",
-    "numpy",
     "transformers[sentencepiece]",
     "protobuf",
     "pyyaml",
     "jinja2",
     "ruff",
     "flake8",
+    "numpy",
+    "requests",
+    "Pillow",
+    "huggingface-hub",
 ]
 
 [project.urls]
