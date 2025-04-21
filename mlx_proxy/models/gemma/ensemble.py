@@ -1,7 +1,4 @@
-import glob
 import inspect
-import json
-from pathlib import Path
 
 import mlx.core as mx
 import mlx.nn as nn
@@ -188,27 +185,3 @@ class Model(nn.Module):
             # mask=final_attention_mask_4d, # TODO: Fix mask
         )
         return logits
-
-    @staticmethod
-    def from_pretrained(path_or_hf_repo: str):
-        path = Path(path_or_hf_repo)
-        with open(path / "config.json") as f:
-            config = json.load(f)
-
-        model_config = ModelArgs.from_dict(config)
-        model_config.vision_config = VisionConfig.from_dict(config["vision_config"])
-        model_config.text_config = TextConfig.from_dict(config["text_config"])
-
-        model = Model(model_config)
-        weight_files = glob.glob(str(path / "*.safetensors"))
-        if not weight_files:
-            raise FileNotFoundError(f"No safetensors found in {path}")
-
-        weights = {}
-        for wf in weight_files:
-            weights.update(mx.load(wf))
-
-        weights = VisionModel(model_config.vision_config).sanitize(weights=weights)
-        weights = LanguageModel(model_config.text_config).sanitize(weights=weights)
-        model.load_weights(list(weights.items()))
-        return model

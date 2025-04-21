@@ -9,7 +9,7 @@ from typing import Any
 import mlx.core as mx
 import mlx.nn as nn
 from huggingface_hub import snapshot_download
-from transformers import AutoTokenizer, PreTrainedTokenizer, PreTrainedTokenizerFast
+from transformers.models.auto.tokenization_auto import AutoTokenizer
 
 from mlx_proxy.utils import sanitize_weights
 
@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 def load(
     path_or_hf_repo: str,
-) -> tuple[nn.Module, PreTrainedTokenizer | PreTrainedTokenizerFast]:
+) -> tuple[nn.Module, AutoTokenizer]:
     """
     Load the model and tokenizer from a given path or a huggingface repository.
 

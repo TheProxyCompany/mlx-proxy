@@ -1,11 +1,5 @@
-import glob
-import json
-from pathlib import Path
-
 import mlx.core as mx
 import mlx.nn as nn
-import numpy as np
-from huggingface_hub import snapshot_download
 
 from mlx_proxy.cache import BaseCache
 from mlx_proxy.models.base import BaseModelArgs
@@ -101,41 +95,3 @@ class Model(nn.Module):
 
         logits = self.language_model(None, cache=cache, inputs_embeds=inputs_embeds)
         return logits
-
-    @staticmethod
-    def from_pretrained(path_or_hf_repo: str):
-        path = Path(path_or_hf_repo)
-        if not path.exists():
-            path = Path(
-                snapshot_download(
-                    repo_id=path_or_hf_repo,
-                    allow_patterns=[
-                        "*.json",
-                        "*.safetensors",
-                        "*.py",
-                        "tokenizer.model",
-                        "*.tiktoken",
-                    ],
-                )
-            )
-
-        with open(path / "config.json") as f:
-            model_config = json.load(f)
-
-        model_config = ModelArgs.from_dict(model_config)
-
-        model_config.vision_config = VisionConfig.from_dict(model_config.vision_config)
-        model_config.text_config = TextConfig.from_dict(model_config)
-
-        model = Model(model_config)
-        weight_files = glob.glob(str(path / "*.safetensors"))
-        if not weight_files:
-            raise FileNotFoundError(f"No safetensors found in {path}")
-
-        weights = {}
-        for wf in weight_files:
-            weights.update(mx.load(wf))
-
-        weights = VisionModel.sanitize(weights)
-        model.load_weights(list(weights.items()))
-        return model

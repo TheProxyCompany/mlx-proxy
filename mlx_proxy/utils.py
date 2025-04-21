@@ -3,7 +3,7 @@ import logging
 import mlx.core as mx
 import mlx.nn as nn
 from PIL import Image
-from transformers import PreTrainedTokenizer, PreTrainedTokenizerFast
+from transformers.models.auto.tokenization_auto import AutoTokenizer
 
 from mlx_proxy.vision.utils import BaseImageProcessor, process_image
 
@@ -36,7 +36,7 @@ def set_max_reccomended_device_limit():
 def prepare_inputs(
     prompt: str,
     images: list[Image.Image | str],
-    tokenizer: PreTrainedTokenizer | PreTrainedTokenizerFast,
+    tokenizer: AutoTokenizer,
     image_processor: BaseImageProcessor | None,
     resize_shape: tuple[int, int] | None = None,
 ) -> dict[str, mx.array]:
