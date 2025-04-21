@@ -11,7 +11,6 @@ class ModelArgs(BaseModelArgs):
     text_config: TextConfig
     vision_config: VisionConfig
     model_type: str
-    ignore_index: int = -100
     image_token_id: int = 151655
     video_token_id: int = 151656
     vision_start_token_id: int = 151652

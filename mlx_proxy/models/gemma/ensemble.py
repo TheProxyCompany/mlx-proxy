@@ -14,7 +14,6 @@ class ModelArgs(BaseModelArgs):
     vision_config: VisionConfig
     model_type: str
     vocab_size: int = 257152
-    ignore_index: int = -100
     image_token_index: int = 257152
     hidden_size: int = 2048
     pad_token_id: int = 0
